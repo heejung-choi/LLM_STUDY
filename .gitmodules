@@ -1,0 +1,3 @@
+[submodule "langchain-kr"]
+	path = langchain-kr
+	url = https://github.com/teddylee777/langchain-kr.git

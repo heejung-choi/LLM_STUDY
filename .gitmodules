@@ -1,0 +1,3 @@
+[submodule "submodule-folder"]
+	path = submodule-folder
+	url = https://github.com/IMDS-AI/IMDS-RAG.git

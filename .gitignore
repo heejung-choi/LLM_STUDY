@@ -1,0 +1,9 @@
+app.log
+
+vectorstore/
+store/
+
+__pycache__/
+
+# Environment
+.env

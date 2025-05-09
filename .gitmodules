@@ -1,3 +1,15 @@
 [submodule "langchain-kr"]
 	path = langchain-kr
 	url = https://github.com/heejung-choi/langchain-kr.git
+
+[submodule "IMDS-RAG"]
+    path = IMDS-RAG
+    url = https://github.com/IMDS-AI/IMDS-RAG.git
+
+[submodule "imds-chatbot-front"]
+    path = imds-chatbot-front
+    url = https://github.com/IMDS-AI/imds-chatbot-front.git
+
+[submodule "langchain-kr-backup"]
+    path = langchain-kr-backup
+    url = https://github.com/IMDS-AI/langchain-kr-backup.git

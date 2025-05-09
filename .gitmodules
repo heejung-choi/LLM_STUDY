@@ -10,6 +10,3 @@
     path = imds-chatbot-front
     url = https://github.com/IMDS-AI/imds-chatbot-front.git
 
-[submodule "langchain-kr-backup"]
-    path = langchain-kr-backup
-    url = https://github.com/IMDS-AI/langchain-kr-backup.git

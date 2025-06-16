@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
 JSONL로 청크된 약관 데이터를 임베딩 API 호출 후 Qdrant 벡터 DB에 저장
 - .env 파일에서 QDRANT_HOST, QDRANT_PORT, QDRANT_COLLECTION, EMBEDDING_API_URL 자동 로드
@@ -26,7 +23,7 @@ load_dotenv()
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "insurance_policies")
-EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL")
+EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL","http://211.170.189.184:8000/v1/embeddings/")
 
 if not EMBEDDING_API_URL:
     print("ERROR: .env에 EMBEDDING_API_URL이 설정되지 않았습니다.")

@@ -78,6 +78,16 @@ docker ps
 ### docker 실행방법
 docker-compose up -d
 
+### qdrant
+# 1) 기존 컨테이너 중지
+docker stop qdrant
+
+# 2) 기존 컨테이너 삭제
+docker rm qdrant
+
+# 3) 새로 실행
+docker run -d --name qdrant -p 6333:6333 -p 6334:6334 qdrant/qdrant:latest
+
 ## 최종 실행 방법
 1️⃣ PDF → JSONL 추출
 python batch_process_policies_rag.py ./pdf_dir

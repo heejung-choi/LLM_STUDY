@@ -2,7 +2,7 @@
 rag_query.py
 
 Qdrant에 업로드된 보험 약관 청크들을 벡터 검색하고,
-검색 결과를 OpenAI에 전달하여 답변을 생성하는 예제 스크립트입니다.
+검색 결과를 Hugging Face LLM(OpenAI API 호환)을 통해 답변을 생성하는 예제 스크립트입니다.
 
 Usage:
     python rag_query.py
@@ -13,7 +13,7 @@ import sys
 import requests
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-import openai
+from openai import OpenAI
 
 # 1) .env 로드
 load_dotenv()
@@ -22,21 +22,25 @@ load_dotenv()
 QDRANT_HOST       = os.getenv("QDRANT_HOST")
 QDRANT_PORT       = int(os.getenv("QDRANT_PORT", 6333))
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION")
-OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY")
 EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL")
+HF_API_KEY        = os.getenv("HF_TOKEN")
+HF_MODEL_ID       = os.getenv("HF_MODEL_ID", "Qwen/Qwen2.5-7B-Instruct")
 TOP_K             = int(os.getenv("TOP_K", 5))
 
 # 필수 환경변수 확인
-missing = [k for k in ("QDRANT_HOST","QDRANT_COLLECTION","OPENAI_API_KEY","EMBEDDING_API_URL") if not os.getenv(k)]
+missing = [k for k in ("QDRANT_HOST","QDRANT_COLLECTION","EMBEDDING_API_URL","HF_TOKEN") if not os.getenv(k)]
 if missing:
     print(f"ERROR: 다음 환경변수가 설정되어 있지 않습니다: {', '.join(missing)}", file=sys.stderr)
     sys.exit(1)
 
-# 3) OpenAI 키 설정
-openai.api_key = OPENAI_API_KEY
+# 3) Hugging Face (OpenAI-compatible) 클라이언트 설정
+client = OpenAI(
+    base_url="https://api.endpoints.huggingface.cloud/v1",
+    api_key=HF_API_KEY,
+)
 
 # 4) Qdrant 클라이언트 초기화
-client = QdrantClient(
+qdrant = QdrantClient(
     url=f"http://{QDRANT_HOST}:{QDRANT_PORT}",
     prefer_grpc=False
 )
@@ -56,34 +60,26 @@ def search_knn(query_vector: list[float], top_k: int = TOP_K):
     """
     Qdrant에서 k-NN 검색을 수행하여 유사 문서들을 리턴합니다.
     """
-
-    # search -> 과거버전 query_points -> 현재버전으로 query_points으로 변경
-    # hits = client.search(
-    #     collection_name=QDRANT_COLLECTION,
-    #     query_vector=query_vector,
-    #     limit=top_k,
-    #     with_payload=True
-    # )
-    # return hits
-
-    hits = client.query_points(
+    hits = qdrant.query_points(
         collection_name=QDRANT_COLLECTION,
         query=query_vector,
         limit=top_k,
         with_payload=True,
     )
-    #print("DEBUG: hits type =", type(hits))
     return hits.points  
 
 def answer_question(question: str) -> str:
     """
-    질의를 임베딩 → Qdrant 검색 → OpenAI ChatCompletion으로 답변 생성
+    질의를 임베딩 → Qdrant 검색 → Hugging Face ChatCompletion으로 답변 생성
     """
     # 1) 질의 임베딩
     q_vec = embed_query(question)
 
     # 2) k-NN 검색
     docs = search_knn(q_vec, top_k=TOP_K)
+
+    if not docs:
+        return "관련된 정보를 찾을 수 없습니다. 질문을 다시 확인해 주세요."
 
     # 3) 검색 결과를 Prompt용 컨텍스트로 조합
     context = []
@@ -94,15 +90,15 @@ def answer_question(question: str) -> str:
         context.append(ctx)
     joined = "\n\n---\n\n".join(context)
 
-    # 4) OpenAI 호출 (v1.0.0 이상용)
+    # 4) Hugging Face 호출 (OpenAI 호환 포맷)
     prompt = (
-        "아래는 보험 약관을 참고한 내용으로 정확한 정보는 보험 약관을 확인하시기 바랍니다.:\n\n"
+        "다음은 보험 약관에서 발췌한 내용입니다. 정확한 정보는 반드시 원문 약관을 확인하세요.\n\n"
         f"{joined}\n\n"
         f"### 질문: {question}\n\n"
         "### 답변:"
     )
-    resp = openai.chat.completions.create(
-        model="gpt-4o-mini",
+    resp = client.chat.completions.create(
+        model=HF_MODEL_ID,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,
     )

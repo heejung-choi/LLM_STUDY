@@ -6,70 +6,69 @@ import requests
 import httpx
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+from qdrant_client.http import models as rest
 
-# 환경변수 로드 및 필수값 검사
+# 1) .env 로드
 load_dotenv()
+
+# 2) 환경변수 불러오기
 QDRANT_HOST       = os.getenv("QDRANT_HOST")
 QDRANT_PORT       = int(os.getenv("QDRANT_PORT", 6333))
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION")
 EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL")
 LLM_API_URL       = os.getenv("LLM_API_URL")
-LLM_MODEL_ID      = os.getenv("LLM_MODEL_ID", "/model/gen/Midm")
+LLM_MODEL_ID      = os.getenv("LLM_MODEL_ID", "Qwen/Qwen2.5-7B-Instruct")
 TOP_K             = int(os.getenv("TOP_K", 5))
 PRODUCTS_FILE     = "insurance_products.json"
 
+# 필수 환경변수 확인
 missing = [k for k in ("QDRANT_HOST", "QDRANT_COLLECTION", "EMBEDDING_API_URL", "LLM_API_URL") if not os.getenv(k)]
 if missing:
     print(f"ERROR: 다음 환경변수가 설정되어 있지 않습니다: {', '.join(missing)}", file=sys.stderr)
     sys.exit(1)
 
-# Qdrant 클라이언트 초기화
+# 3) Qdrant 클라이언트 초기화
 qdrant = QdrantClient(
     url=f"http://{QDRANT_HOST}:{QDRANT_PORT}",
     prefer_grpc=False
 )
 
-# 보험상품명 로딩 및 유사도 탐색
 def load_product_names():
     with open(PRODUCTS_FILE, encoding="utf-8") as f:
         data = json.load(f)
     return [item["PRDCD_NAM"] for item in data]
 
 def find_best_match(user_input, product_names):
-    return difflib.get_close_matches(user_input, product_names, n=5, cutoff=0.35)
+    return difflib.get_close_matches(user_input, product_names, n=3, cutoff=0.5)
 
-# 임베딩 요청
 def embed_query(query):
-    resp = requests.post(EMBEDDING_API_URL, json={"input": [query]})
+    payload = {"input": [query]}
+    resp = requests.post(EMBEDDING_API_URL, json=payload)
     resp.raise_for_status()
     return resp.json()["data"][0]["embedding"]
 
-# 벡터 검색
 def search_knn(query_vector, product_name):
-    print(f"[DEBUG] Qdrant 검색 시작: product_name = '{product_name}'")
-    
-    search_filter = Filter(must=[
-        FieldCondition(
-            key="source_file",
-            match=MatchValue(value=f"{product_name}.jsonl")
-        )
-    ])
-    
-    response = qdrant.query_points(
+    hits = qdrant.query_points(
         collection_name=QDRANT_COLLECTION,
-        query=query_vector,
+        vector=query_vector,
         limit=TOP_K,
         with_payload=True,
-        query_filter=search_filter
+        query_filter=rest.Filter(
+            must=[
+                rest.FieldCondition(
+                    key="source_file",
+                    match=rest.MatchValue(value=f"{product_name}.jsonl")
+                )
+            ]
+        )
     )
-    result = response.points
-    print(f"[DEBUG] 검색 결과 수: {len(result)}개")
-    return result
+    return hits.points
 
-# LLM 스트리밍 응답 처리
 def stream_llm_response(prompt: str):
-    headers = {"Content-Type": "application/json", "Connection": "Keep-Alive"}
+    headers = {
+        "Content-Type": "application/json",
+        "Connection": "Keep-Alive"
+    }
     payload = {
         "model": LLM_MODEL_ID,
         "messages": [{"role": "user", "content": prompt}],
@@ -90,47 +89,30 @@ def stream_llm_response(prompt: str):
                     except Exception:
                         continue
 
-# 전체 QA 처리
 def answer_question(question, product_name):
     q_vec = embed_query(question)
     docs = search_knn(q_vec, product_name)
     if not docs:
-        print("🔍 해당 상품의 약관에서 유사한 내용을 찾을 수 없습니다.")
-        return
+        return "🔍 해당 상품의 약관에서 유사한 내용을 찾을 수 없습니다."
+
     context = []
     for hit in docs:
-        payload = hit.payload or {}
-        ctx = f"{payload.get('chapter')} {payload.get('article')} (clause {payload.get('clause_index')}):\n{payload.get('text')}"
+        p = hit.payload
+        ctx = f"{p['chapter']} {p['article']} (clause {p['clause_index']}):\n{p['text']}"
         context.append(ctx)
     joined = "\n\n---\n\n".join(context)
+
     prompt = (
+        "请用韩语回答以下问题。请注意，不要使用中文、英文或其他语言，只能使用韩语。如果你使用了其他语言，将被视为错误。\n\n"
         "다음은 보험 약관에서 발췌한 내용입니다. 정확한 정보는 반드시 원문 약관을 확인하세요.\n\n"
         f"{joined}\n\n"
         f"### 질문: {question}\n\n"
         "### 답변:"
     )
+
     stream_llm_response(prompt)
 
-# 업로드된 source_file 확인
-def list_uploaded_source_files():
-    print("[INFO] Qdrant에서 업로드된 source_file 목록 조회 중...")
-    result = qdrant.scroll(
-        collection_name=QDRANT_COLLECTION,
-        with_payload=True,
-        limit=10_000
-    )
-    points = result[0]  # 첫 번째 요소가 points 리스트
-    source_files = {
-        point.payload.get("source_file")
-        for point in points if point.payload
-    }
-    print(f"[INFO] 총 {len(source_files)}개의 source_file 발견:")
-    for f in sorted(source_files):
-        print(" -", f)
-
-# CLI 실행 루프
 if __name__ == "__main__":
-    list_uploaded_source_files()
     product_names = load_product_names()
     print("상품명을 포함한 질문을 입력하세요 (예: 'iM 하이브리드연금보험의 보장 내용이 뭐야?')")
     try:
@@ -138,21 +120,23 @@ if __name__ == "__main__":
             q = input("> ").strip()
             if not q:
                 continue
+
             best_matches = find_best_match(q, product_names)
             if not best_matches:
-                print("❌ 입력된 질문에서 유사한 보험 상품명을 찾을 수 없습니다.")
+                print("❌ 입력된 질문에서 유사한 보험 상품명을 찾을 수 없습니다. 다시 입력해주세요.")
                 continue
-            print("🔍 유사한 상품명 후보:")
-            for idx, name in enumerate(best_matches, 1):
-                print(f"  {idx}. {name}")
-            selected = input("👉 위 상품 중 질문하고자 하는 번호를 선택하세요, 또는 Enter로 취소: ").strip()
-            if not selected.isdigit() or not (1 <= int(selected) <= len(best_matches)):
-                print("⏹ 선택이 취소되었습니다. 다시 질문해주세요.\n")
-                continue
-            chosen_product = best_matches[int(selected) - 1]
-            print(f"\n▶ [{chosen_product}]에 대한 답변:")
-            answer_question(q, chosen_product)
-            print("\n")
+
+            print("🔍 가장 유사한 상품명:", best_matches[0])
+            yn = input(f"👉 이 상품에 대해 질문한 것이 맞나요? (Y/N): ").strip().lower()
+            if yn == "y":
+                print("\n▶ 답변:")
+                answer_question(q, best_matches[0])
+                print("\n")
+            else:
+                print("📌 유사한 상품명 후보:")
+                for p in best_matches:
+                    print("-", p)
+                print("다시 정확한 상품명을 포함하여 질문해주세요.\n")
     except KeyboardInterrupt:
         print("\n종료합니다.")
         sys.exit(0)

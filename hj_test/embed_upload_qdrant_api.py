@@ -1,11 +1,3 @@
-"""
-embed_upload_qdrant_api.py
-JSONL 청크 데이터를 임베딩 API → Qdrant 업로드
-
-Usage:
-    python embed_upload_qdrant_api.py <jsonl_dir>
-"""
-
 import os
 import sys
 import json
@@ -16,8 +8,6 @@ from tqdm import tqdm
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as rest
-from qdrant_client import QdrantClient
-#from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 
 # ── 환경변수 로드 ─────────────────────────────────────────
 load_dotenv()
@@ -31,41 +21,20 @@ if not EMBEDDING_API_URL:
     print("ERROR: .env에 EMBEDDING_API_URL이 설정되어 있지 않습니다.", file=sys.stderr)
     sys.exit(1)
 
-# ── Qdrant 클라이언트 초기화 ───────────────────────────────
 client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 
-# 컬렉션 삭제(초기화)
-client.delete_collection(collection_name="insurance_policies")
-print("insurance_policies 컬렉션을 삭제했습니다.")
-
-def ensure_collection():
-    names = [c.name for c in client.get_collections().collections]
-    if QDRANT_COLLECTION not in names:
-        print(f"NOTICE: Collection '{QDRANT_COLLECTION}' 생성 중…")
-        client.recreate_collection(
-            collection_name=QDRANT_COLLECTION,
-            vectors_config=rest.VectorParams(size=1024, distance=rest.Distance.COSINE)
-        )
-    else:
-        print(f"OK: Collection '{QDRANT_COLLECTION}' 확인됨")
-
+# 임베딩 API 호출: 텍스트 리스트 → 벡터 리스트
 def get_embeddings(texts: list[str]) -> list[list[float]]:
-    payload = {
-        "model": EMBEDDING_MODEL,
-        "input": texts
-    }
+    payload = {"model": EMBEDDING_MODEL, "input": texts}
     r = requests.post(EMBEDDING_API_URL, json=payload)
     r.raise_for_status()
     data = r.json()
-    # OpenAI 스타일: data["data"] = [ { "embedding": [...] }, ... ]
     items = data.get("data") or data.get("result")
-    return [
-        itm["embedding"] if isinstance(itm, dict) and "embedding" in itm else itm
-        for itm in items
-    ]
+    return [itm["embedding"] if isinstance(itm, dict) and "embedding" in itm else itm for itm in items]
 
+# 약관 JSONL 디렉토리 처리: 각 청크를 벡터화 후 Qdrant에 업로드
 def process_jsonl_folder(folder: str):
-    # 1) .jsonl 파일 수집
+    print(f"\n약관 JSONL 디렉토리 처리 시작: {folder}")
     files = []
     for root, _, fnames in os.walk(folder):
         for fn in fnames:
@@ -76,6 +45,13 @@ def process_jsonl_folder(folder: str):
         sys.exit(1)
 
     print(f"총 {len(files)}개 JSONL 파일 처리\n")
+
+    # ⚠️ 기존 insurance_policies 컬렉션 삭제 후 재생성
+    client.recreate_collection(
+        collection_name=QDRANT_COLLECTION,
+        vectors_config=rest.VectorParams(size=1024, distance=rest.Distance.COSINE)
+    )
+    print(f"'{QDRANT_COLLECTION}' 컬렉션 재생성 완료")
 
     for path in files:
         rel = os.path.relpath(path, folder)
@@ -112,20 +88,72 @@ def process_jsonl_folder(folder: str):
                 )
             client.upsert(collection_name=QDRANT_COLLECTION, points=points)
             time.sleep(0.05)
-
         print("완료\n")
+
+#  보험 상품명 JSON → Qdrant 벡터 업로드 (insurance_products 컬렉션)
+def embed_upload_insurance_products(json_path: str, collection_name: str = "insurance_products"):
+    if not os.path.isfile(json_path):
+        print(f"ERROR: 파일이 존재하지 않습니다: {json_path}", file=sys.stderr)
+        return
+
+    print(f"\n보험 상품명 JSON 로딩 중: {json_path}")
+    with open(json_path, encoding="utf-8") as f:
+        items = json.load(f)
+
+    names = [item["PRDCD_NAM"] for item in items]
+    try:
+        vectors = get_embeddings(names)
+    except Exception as e:
+        print(f"ERROR: 임베딩 실패: {e}", file=sys.stderr)
+        return
+
+    print(f"총 {len(names)}개 상품명을 '{collection_name}' 컬렉션에 업로드합니다.")
+    existing = [c.name for c in client.get_collections().collections]
+    if collection_name in existing:
+        # ⚠️ 기존 insurance_products 컬렉션 삭제
+        client.delete_collection(collection_name=collection_name)
+        print(f"기존 '{collection_name}' 컬렉션 삭제 완료")
+
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=rest.VectorParams(
+            size=len(vectors[0]),
+            distance=rest.Distance.COSINE
+        )
+    )
+    
+
+    points = []
+    for item, vec in zip(items, vectors):
+        payload = {
+            "name": item["PRDCD_NAM"],
+            "pk": item["PK"],
+            "class": item.get("CLASSNM"),
+            "start": item.get("SALE_START_DT"),
+            "end": item.get("SALE_END_DT"),
+        }
+        points.append(
+            rest.PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vec,
+                payload=payload
+            )
+        )
+
+    client.upsert(collection_name=collection_name, points=points)
+    print(f"'{collection_name}' 업로드 완료 ({len(points)}건)")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python embed_upload_qdrant_api.py <jsonl_dir>", file=sys.stderr)
-        sys.exit(1)
-    folder = sys.argv[1]
-    if not os.path.isdir(folder):
-        print(f"ERROR: '{folder}' 디렉터리가 없습니다.", file=sys.stderr)
+        print("Usage: python embed_upload_qdrant_api.py <jsonl_dir|insurance_products.json>", file=sys.stderr)
         sys.exit(1)
 
-    print("Qdrant 연결 중…")
-    ensure_collection()
-    print("\nEmbedding & Upload 시작\n")
-    process_jsonl_folder(folder)
-    print("모두 완료되었습니다!")
+    arg = sys.argv[1]
+    if arg.lower().endswith(".json"):
+        embed_upload_insurance_products(arg)
+    elif os.path.isdir(arg):
+        process_jsonl_folder(arg)
+        print("모두 완료되었습니다!")
+    else:
+        print(f"ERROR: 유효한 디렉터리나 JSON 파일이 아닙니다: {arg}", file=sys.stderr)
+        sys.exit(1)

@@ -116,3 +116,5 @@ python embed_upload_qdrant_api.py ./pdf_dir/jsonl
           |
           v
 [ Qdrant ] → Vector search 가능
+
+python rag_query.py

@@ -1,13 +1,3 @@
-"""
-rag_query.py
-
-Qdrant에 업로드된 보험 약관 청크들을 벡터 검색하고,
-검색 결과를 HTTP API 기반 Qwen LLM(OpenAI 호환 포맷)에 전달하여 답변을 스트리밍 생성
-
-Usage:
-    python rag_query.py
-"""
-
 import os
 import sys
 import json
@@ -19,22 +9,22 @@ from qdrant_client import QdrantClient
 # 1) .env 로드
 load_dotenv()
 
-# 2) 환경변수로부터 설정값 불러오기
+# 2) 환경변수 불러오기
 QDRANT_HOST       = os.getenv("QDRANT_HOST")
 QDRANT_PORT       = int(os.getenv("QDRANT_PORT", 6333))
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION")
 EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL")
 LLM_API_URL       = os.getenv("LLM_API_URL", "http://211.170.189.184:8000/v1/chat/completions")
-LLM_MODEL_ID      = os.getenv("LLM_MODEL_ID", "/model/gen/Qwen2.5-7B-Instruct")
+LLM_MODEL_ID      = os.getenv("LLM_MODEL_ID", "/model/gen/Midm")
 TOP_K             = int(os.getenv("TOP_K", 5))
 
-# 필수 환경변수 확인
-missing = [k for k in ("QDRANT_HOST", "QDRANT_COLLECTION", "EMBEDDING_API_URL","LLM_API_URL") if not os.getenv(k)]
+# 필수 환경변수 누락 체크
+missing = [k for k in ("QDRANT_HOST", "QDRANT_COLLECTION", "EMBEDDING_API_URL", "LLM_API_URL") if not os.getenv(k)]
 if missing:
     print(f"ERROR: 다음 환경변수가 설정되어 있지 않습니다: {', '.join(missing)}", file=sys.stderr)
     sys.exit(1)
 
-# 3) Qdrant 클라이언트 초기화
+# Qdrant 클라이언트 초기화
 qdrant = QdrantClient(
     url=f"http://{QDRANT_HOST}:{QDRANT_PORT}",
     prefer_grpc=False
@@ -42,7 +32,7 @@ qdrant = QdrantClient(
 
 def embed_query(query: str) -> list[float]:
     """
-    사용자의 질의를 embedding API에 보내고 벡터를 리턴합니다.
+    사용자의 질의를 임베딩 API에 보내고 벡터를 리턴합니다.
     """
     payload = {"input": [query]}
     resp = requests.post(EMBEDDING_API_URL, json=payload)
@@ -78,6 +68,8 @@ def stream_llm_response(prompt: str):
         "stream": True
     }
 
+    print("\n[📤 LLM 요청 전송 중...]\n")
+
     with httpx.stream("POST", LLM_API_URL, json=payload, headers=headers, timeout=None) as response:
         for chunk in response.iter_text():
             if chunk.strip():
@@ -87,24 +79,32 @@ def stream_llm_response(prompt: str):
                         continue
                     try:
                         delta = json.loads(line)
-                        choices = delta.get("choices")
-                        if not choices:
+                        if "choices" not in delta:
+                            print(f"\n[⚠️ 무시된 응답] choices 없음 → {line}", file=sys.stderr)
                             continue
-                        content = choices[0].get("delta", {}).get("content", "")
+                        content = delta["choices"][0].get("delta", {}).get("content", "")
                         print(content, end="", flush=True)
-                    except (json.JSONDecodeError, KeyError, IndexError) as e:
-                        print(f"\n[파싱 오류] 무시된 응답: {line}\n", file=sys.stderr)
+                    except Exception as e:
+                        print(f"\n[❌ JSON 파싱 오류] {e} → {line}", file=sys.stderr)
 
 def answer_question(question: str):
     """
     질의를 임베딩 → Qdrant 검색 → 프롬프트 생성 → HTTP 기반 LLM 호출
     """
+    print(f"\n[🔍 임베딩 중] 질문: {question}")
     q_vec = embed_query(question)
+
+    print("[🔎 Qdrant 검색 중...]")
     docs = search_knn(q_vec)
+    print(f"[✅ 검색된 문서 수]: {len(docs)}")
 
     if not docs:
-        print("🔍 관련된 정보를 찾을 수 없습니다.")
+        print("❗ 관련된 정보를 찾을 수 없습니다.")
         return
+
+    for i, hit in enumerate(docs):
+        payload = hit.payload
+        print(f"  [{i+1}] {payload.get('chapter')} {payload.get('article')} (clause {payload.get('clause_index')}): {payload.get('text')[:30]}...")
 
     # 검색 결과 컨텍스트 구성
     context = []
@@ -116,19 +116,19 @@ def answer_question(question: str):
 
     # 최종 프롬프트 구성
     prompt = (
-    # LLM만 보라고 넣는 중국어 지시문
-    "请用韩语回答以下问题。请注意，不要使用中文、英文或其他语言，只能使用韩语。如果你使用了其他语言，将被视为错误。\n\n"
-    
-    # 사용자용 실제 프롬프트 (출력 그대로 유지)
-    "다음은 보험 약관에서 발췌한 내용입니다. 정확한 정보는 반드시 원문 약관을 확인하세요.\n\n"
-    f"{joined}\n\n"
-    f"### 질문: {question}\n\n"
-    "### 답변:"
+        "请用韩语回答以下问题。请注意，不要使用中文、英文或其他语言，只能使用韩语。如果你使用了其他语言，将被视为错误。\n\n"
+        "다음은 보험 약관에서 발췌한 내용입니다. 정확한 정보는 반드시 원문 약관을 확인하세요.\n\n"
+        f"{joined}\n\n"
+        f"### 질문: {question}\n\n"
+        "### 답변:"
     )
 
+    print("\n[🧾 최종 프롬프트]\n" + "-"*60 + "\n")
+    print(prompt)
+    print("\n" + "-"*60)
     print("▶ 답변:")
     stream_llm_response(prompt)
-    print("\n")  # 줄바꿈
+    print("\n")
 
 if __name__ == "__main__":
     print("질문을 입력하세요 (종료는 Ctrl+C):")

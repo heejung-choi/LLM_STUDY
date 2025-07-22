@@ -24,7 +24,7 @@ QDRANT_HOST       = os.getenv("QDRANT_HOST")
 QDRANT_PORT       = int(os.getenv("QDRANT_PORT", 6333))
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION")
 EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL")
-LLM_API_URL       = os.getenv("LLM_API_URL", "http://211.170.189.184:8000/v1/chat/completions")
+LLM_API_URL       = os.getenv("LLM_API_URL", "http://172.27.209.100:8000/v1/chat/completions")
 LLM_MODEL_ID      = os.getenv("LLM_MODEL_ID", "/model/gen/Qwen2.5-7B-Instruct")
 TOP_K             = int(os.getenv("TOP_K", 5))
 
@@ -82,18 +82,11 @@ def stream_llm_response(prompt: str):
         for chunk in response.iter_text():
             if chunk.strip():
                 for line in chunk.split("data: "):
-                    line = line.strip()
-                    if not line or line == "[DONE]":
+                    if not line.strip() or line.strip() == "[DONE]":
                         continue
-                    try:
-                        delta = json.loads(line)
-                        choices = delta.get("choices")
-                        if not choices:
-                            continue
-                        content = choices[0].get("delta", {}).get("content", "")
-                        print(content, end="", flush=True)
-                    except (json.JSONDecodeError, KeyError, IndexError) as e:
-                        print(f"\n[파싱 오류] 무시된 응답: {line}\n", file=sys.stderr)
+                    delta = json.loads(line.strip())
+                    content = delta['choices'][0]['delta'].get('content', '')
+                    print(content, end="", flush=True)
 
 def answer_question(question: str):
     """
@@ -116,14 +109,10 @@ def answer_question(question: str):
 
     # 최종 프롬프트 구성
     prompt = (
-    # LLM만 보라고 넣는 중국어 지시문
-    "请用韩语回答以下问题。请注意，不要使用中文、英文或其他语言，只能使用韩语。如果你使用了其他语言，将被视为错误。\n\n"
-    
-    # 사용자용 실제 프롬프트 (출력 그대로 유지)
-    "다음은 보험 약관에서 발췌한 내용입니다. 정확한 정보는 반드시 원문 약관을 확인하세요.\n\n"
-    f"{joined}\n\n"
-    f"### 질문: {question}\n\n"
-    "### 답변:"
+        "다음은 보험 약관에서 발췌한 내용입니다. 정확한 정보는 반드시 원문 약관을 확인하세요.\n\n"
+        f"{joined}\n\n"
+        f"### 질문: {question}\n\n"
+        "### 답변:"
     )
 
     print("▶ 답변:")

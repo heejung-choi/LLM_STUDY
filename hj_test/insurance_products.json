@@ -1,0 +1,163 @@
+[
+  {
+    "PK":1,
+    "PRDCD_NAM":"HighFive그랑에이지변액연금보험 무배당 2506",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"변액"
+  },
+  {
+    "PK":2,
+    "PRDCD_NAM":"iM HighFive변액연금보험 무배당 2501",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"변액"
+  },
+  {
+    "PK":3,
+    "PRDCD_NAM":"iM 더블플러스변액연금보험 무배당 2504",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"변액"
+  },
+  {
+    "PK":4,
+    "PRDCD_NAM":"iM 마스터PRO변액연금보험 무배당 2506",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"변액"
+  },
+  {
+    "PK":5,
+    "PRDCD_NAM":"iM 스타트PRO변액연금보험 무배당 2506",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"변액"
+  },
+  {
+    "PK":6,
+    "PRDCD_NAM":"iM 트래블PRO변액연금보험 무배당 2506",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"변액"
+  },
+  {
+    "PK":7,
+    "PRDCD_NAM":"마이솔루션AI변액연금보험 무배당 2501",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"변액"
+  },
+  {
+    "PK":8,
+    "PRDCD_NAM":"마이솔루션AI변액연금보험S 무배당 2501",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"변액"
+  },
+  {
+    "PK":9,
+    "PRDCD_NAM":"희망파트너변액유니버셜보험 무배당 2404(계약전환용)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"변액"
+  },
+  {
+    "PK":10,
+    "PRDCD_NAM":"SMART유니버셜종신보험 무배당 2504(보증비용부과형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":11,
+    "PRDCD_NAM":"THE당당한인생간편종신보험S 무배당 2504 (해약환급금 일부지급형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":12,
+    "PRDCD_NAM":"THE당당한인생종신보험S 무배당 2504 (해약환급금 일부지급형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":13,
+    "PRDCD_NAM":"iM Plus세븐UP간편종신보험 무배당 2506 (해약환급금 일부지급형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":14,
+    "PRDCD_NAM":"iM Plus세븐UP종신보험 무배당 2504 (해약환급금 일부지급형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":15,
+    "PRDCD_NAM":"iM 프리미엄건강보험 무배당 2404",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":16,
+    "PRDCD_NAM":"iM 프리미엄안심보험 무배당 2504(해약환급금 일부지급형(50%형))",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":17,
+    "PRDCD_NAM":"기본형 급여실손의료비보장보험 무배당 2504(갱신형)(계약전환용)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":18,
+    "PRDCD_NAM":"당당한인생간편종신보험 무배당 2504 (해약환급금 일부지급형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":19,
+    "PRDCD_NAM":"당당한인생종신보험 무배당 2504 (해약환급금 일부지급형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":20,
+    "PRDCD_NAM":"든든한인생치매보험 무배당 2504(해약환급금 일부지급형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":21,
+    "PRDCD_NAM":"마음든든플러스유니버셜종신보험 무배당 2501(보증비용부과형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"보장성"
+  },
+  {
+    "PK":22,
+    "PRDCD_NAM":"iM 세이프PRO연금보험 무배당 2506(보증비용부과형)",
+    "SALE_START_DT":"20250630",
+    "SALE_END_DT":"",
+    "CLASSNM":"연금"
+  },
+  {
+    "PK":23,
+    "PRDCD_NAM":"iM라이프 하이브리드연금보험 무배당",
+    "SALE_START_DT":"20241001",
+    "SALE_END_DT":"",
+    "CLASSNM":"연금"
+  }
+]
